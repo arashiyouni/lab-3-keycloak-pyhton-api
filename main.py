@@ -2,17 +2,27 @@ from typing import List
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from jose import JWTError, jwt, ExpiredSignatureError
-from keycloak.keycloak_admin import KeycloakAdmin  # Cambio de importación
+from keycloak.keycloak_admin import KeycloakAdmin, KeycloakOpenIDConnection  # Cambio de importación
 from keycloak.keycloak_openid import KeycloakOpenID  # Cambio de importación
 from pydantic import BaseModel
 import requests
 from jwcrypto.jwt import JWTExpired
-
+from fastapi.middleware.cors import CORSMiddleware
 from Estudiante import EstudianteDB
 from database import get_db
-from schemas import EstudianteCreate, getEstudiante
+from schemas import EstudianteCreate, getEstudiante, UserCreateRequest, UserSignInRequest
 
 app = FastAPI()
+
+#Configuracion para middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],  # Especifica explícitamente el origen del frontend
+    allow_credentials=True,  # Permite el envío de cookies y encabezados de autorización
+    allow_methods=["*"],  # Permite todos los métodos HTTP (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Permite todos los encabezados
+)
+
 
 # Configuración de Keycloak
 KEYCLOAK_SERVER_URL = "https://makiboland.xyz/"
@@ -29,6 +39,7 @@ keycloak_admin = KeycloakAdmin(
     verify=True
 )
 
+# Configuración de Keycloak Admin y OpenID
 keycloak_openid = KeycloakOpenID(
     server_url=KEYCLOAK_SERVER_URL,
     client_id=CLIENT_ID,
@@ -36,10 +47,26 @@ keycloak_openid = KeycloakOpenID(
     client_secret_key=CLIENT_SECRET
 )
 
+# Keycloak AUTH
 oauth2_scheme = OAuth2AuthorizationCodeBearer(
     authorizationUrl=f"{KEYCLOAK_SERVER_URL}realms/{REALM_NAME}/protocol/openid-connect/auth",
     tokenUrl=f"{KEYCLOAK_SERVER_URL}realms/{REALM_NAME}/protocol/openid-connect/token"
 )
+
+#keycloak connection
+keycloak_connection = KeycloakOpenIDConnection(
+    server_url=KEYCLOAK_SERVER_URL,
+    username='test-admin',
+    password='1234',
+    realm_name=REALM_NAME,
+    user_realm_name=REALM_NAME,
+    client_id=CLIENT_ID,
+    client_secret_key=CLIENT_SECRET,
+    verify=True
+)
+
+#keycloak Admin connection
+keycloak_labAdmin = KeycloakAdmin(connection=keycloak_connection)
 
 # Función para obtener la clave pública de Keycloak para verificar los tokens
 def get_keycloak_public_key():
@@ -148,3 +175,32 @@ def delete_student(carnet: str, db: requests.Session = Depends(get_db), token: d
     except Exception as e:
         db.rollback()  # Revertir los cambios en caso de error
         raise HTTPException(status_code=500, detail=f"Error al eliminar el estudiante: {str(e)}")
+    
+
+#endpoint para crear usuario en keycloak
+@app.post("/create-user")
+async def create_user(user: UserCreateRequest):
+    """Crea un nuevo usuario en Keycloak"""
+    try:
+        # Crear nuevo usuario con las credenciales proporcionadas
+        user_created = keycloak_labAdmin.create_user({
+            "email": user.email,
+            "username": user.email,
+            "enabled": True,
+            "firstName": user.firstName,
+            "lastName": user.lastName,
+            "credentials": [{"value": user.password, "type": "password"}]
+        })
+        return {"message": "User creado con éxito", "user_id": user_created}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+#Sign in
+@app.post("/sign-in")
+async def sign_in(user: UserSignInRequest):
+    try:
+        token = keycloak_openid.token(user.email, user.password)
+        return token
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))

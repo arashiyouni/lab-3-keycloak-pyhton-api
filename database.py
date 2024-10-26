@@ -2,9 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Aquí configuramos la conexión con MySQL
-#TODO: AQUI IRA LA INSTANCIA DE MYSQL 
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://user:userpass@localhost:3307/student"
+#Conexión con MySQL
+SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:KqjKgSVI0veroj@34.71.217.195:3306/student"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 

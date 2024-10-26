@@ -15,3 +15,16 @@ class getEstudiante(EstudianteBase):
 
     class Config:
         from_attributes = True
+
+
+# Esquema para la creación de usuarios
+class UserCreateRequest(BaseModel):
+    email: str
+    password: str
+    firstName: str
+    lastName: str
+
+# Esquema para registrarse
+class UserSignInRequest(BaseModel):
+    email: str
+    password: str
